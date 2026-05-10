@@ -8,30 +8,35 @@ function App() {
   const [reviews, setReviews] = useState([]);
   const [profile, setProfile] = useState(null);
   const [isSecure, setIsSecure] = useState(false);
+  const [isAiEnabled, setIsAiEnabled] = useState(false); // AI State
 
   const toggleSecurity = async () => {
     const newMode = !isSecure;
     const res = await axios.post('http://localhost:5000/api/toggle-security', { isSecure: newMode });
     setIsSecure(res.data.isSecure);
+    if (!newMode) setIsAiEnabled(false); // Disable AI if security is turned off
   };
+
+  const toggleAi = async () => {
+    const res = await axios.post('http://localhost:5000/api/toggle-ai', { isAiEnabled: !isAiEnabled });
+    setIsAiEnabled(res.data.isAiEnabled);
+  };
+
   const handleLogin = async () => {
     try {
       const res = await axios.post('http://localhost:5000/api/login', { email, password });
       alert(res.data.message);
-    } catch (err) {
-      alert("Login Failed");
-    }
+    } catch (err) { alert("Login Failed"); }
   };
 
   const postReview = async () => {
     try {
       const res = await axios.post('http://localhost:5000/api/reviews', { content: review });
-      alert(res.data.message); // Only alerts if status is 200
-      setReview(""); // Clear the textarea
-      fetchReviews(); // Refresh the list
+      alert(res.data.message);
+      setReview("");
+      fetchReviews();
     } catch (err) {
-      console.error("POST FAILED:", err);
-      alert("Failed to post: " + (err.response?.data?.message || "Check Console"));
+      alert(err.response?.data?.message || "Post Failed");
     }
   };
 
@@ -44,146 +49,89 @@ function App() {
     try {
       const res = await axios.get(`http://localhost:5000/api/profile/${id}`);
       setProfile(res.data);
-    } catch (err) {
-      // Instead of crashing, we show the security message from the server
-      alert("SECURITY ALERT: " + (err.response?.data?.message || "Unauthorized Access"));
-      setProfile(null); // Clear previous profile data
-    }
+    } catch (err) { alert("SECURITY ALERT: " + err.response.data.message); }
   };
 
   const placeOrder = async () => {
     try {
-      const res = await axios.post('http://localhost:5000/api/place-order', {
-        item: "Expensive Laptop",
-        price: 2000
-      });
-      alert(res.data.message);
-    } catch (err) {
-      // This catches the 403 Forbidden
-      alert("CSRF BLOCK: " + (err.response?.data?.message || "Request Denied"));
-    }
+      await axios.post('http://localhost:5000/api/place-order');
+      alert("Order Successful");
+    } catch (err) { alert("CSRF BLOCK: " + err.response.data.message); }
   };
 
   useEffect(() => { fetchReviews(); }, []);
 
-  const cardStyle = {
-    background: "#fff",
-    padding: "20px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-    marginBottom: "20px"
-  };
-
-  const inputStyle = {
-    width: "100%",
-    padding: "10px",
-    margin: "8px 0",
-    borderRadius: "8px",
-    border: "1px solid #ccc"
-  };
-
-  const buttonStyle = {
-    padding: "10px 15px",
-    borderRadius: "8px",
-    border: "none",
-    background: "#4f46e5",
-    color: "#fff",
-    cursor: "pointer",
-    marginTop: "10px"
-  };
+  const cardStyle = { background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", marginBottom: "20px" };
+  const inputStyle = { width: "100%", padding: "10px", margin: "8px 0", borderRadius: "8px", border: "1px solid #ccc" };
+  const buttonStyle = { padding: "10px 15px", borderRadius: "8px", border: "none", background: "#4f46e5", color: "#fff", cursor: "pointer", marginTop: "10px" };
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#f3f4f6",
-      padding: "30px",
-      fontFamily: "Arial"
-    }}>
+    <div style={{ minHeight: "100vh", background: "#f3f4f6", padding: "30px", fontFamily: "Arial" }}>
+      
+      {/* SECURITY STATUS CARD */}
       <div style={{ ...cardStyle, textAlign: 'center', background: isSecure ? '#dcfce7' : '#fee2e2' }}>
         <h2 style={{ color: isSecure ? '#166534' : '#991b1b' }}>
-          Current Status: {isSecure ? "🛡️ SECURE MODE" : "⚠️ INSECURE MODE"}
+          Status: {isSecure ? "🛡️ SECURE MODE" : "⚠️ INSECURE MODE"}
         </h2>
         <button style={{ ...buttonStyle, background: isSecure ? '#22c55e' : '#ef4444' }} onClick={toggleSecurity}>
           Switch to {isSecure ? "Insecure" : "Secure"} Mode
         </button>
-      </div>
-      <h1 style={{ textAlign: "center", marginBottom: "30px" }}>
-        Insecure E-Commerce Lab
-      </h1>
 
-      {/* LOGIN */}
-      <div style={cardStyle}>
-        <h3>Login</h3>
-        <input
-          style={inputStyle}
-          placeholder="Email"
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          style={inputStyle}
-          type="password"
-          placeholder="Password"
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button style={buttonStyle} onClick={handleLogin}>Login</button>
-      </div>
-
-      {/* REVIEWS */}
-
-      <h3>Product Reviews</h3>
-      <textarea
-        style={{ ...inputStyle, height: "80px" }}
-        placeholder="Write a review..."
-        onChange={(e) => setReview(e.target.value)}
-      />
-      <button style={buttonStyle} onClick={postReview}>Submit Review</button>
-
-      <div style={{ marginTop: "15px" }}>
-        {reviews.map((r, i) => (
-          <div
-            key={i}
-            style={{ background: "#fafafa", border: "1px solid #ddd", borderRadius: "8px", margin: "10px 0", padding: "10px" }}
-          >
-            {isSecure ? (
-              <p>{r.content}</p> // SECURE: React treats this as plain text
-            ) : (
-              <div dangerouslySetInnerHTML={{ __html: r.content }} /> // INSECURE
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* IDOR */}
-      <div style={cardStyle}>
-        <h3>IDOR Lab: User Profile</h3>
-        <button style={buttonStyle} onClick={() => fetchProfile(1)}>
-          View My Profile (ID: 1)
-        </button>
-
-        {profile && (
-          <div style={{
-            marginTop: "15px",
-            background: "#eef2ff",
-            padding: "15px",
-            borderRadius: "8px"
-          }}>
-            <p><strong>Email:</strong> {profile.email}</p>
-            <p><strong>Role:</strong> {profile.role}</p>
+        {/* AI TOGGLE (Only visible in Secure Mode) */}
+        {isSecure && (
+          <div style={{ marginTop: "15px", borderTop: "1px solid #bbf7d0", paddingTop: "10px" }}>
+            <p>AI Moderation: <strong>{isAiEnabled ? "ON" : "OFF"}</strong></p>
+            <button 
+              style={{ ...buttonStyle, background: isAiEnabled ? '#15803d' : '#6b7280' }} 
+              onClick={toggleAi}
+            >
+              {isAiEnabled ? "Disable AI Moderation" : "Enable AI Moderation"}
+            </button>
           </div>
         )}
       </div>
 
-      {/* CSRF */}
+      <h1 style={{ textAlign: "center" }}>Security Lab + AI</h1>
+
+      {/* LOGIN */}
       <div style={cardStyle}>
-        <h3>CSRF Lab: Checkout</h3>
-        <button
-          style={{ ...buttonStyle, background: "#dc2626" }}
-          onClick={placeOrder}
-        >
-          Place Order ($2000)
-        </button>
+        <h3>Login</h3>
+        <input style={inputStyle} placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
+        <input style={inputStyle} type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} />
+        <button style={buttonStyle} onClick={handleLogin}>Login</button>
       </div>
-    </div >
+
+      {/* REVIEWS */}
+      <div style={cardStyle}>
+        <h3>Product Reviews</h3>
+        <textarea 
+          style={{ ...inputStyle, height: "80px" }} 
+          value={review}
+          placeholder="Write something... (Try being mean or using <script>)" 
+          onChange={(e) => setReview(e.target.value)} 
+        />
+        <button style={buttonStyle} onClick={postReview}>Submit Review</button>
+        
+        <div style={{ marginTop: "15px" }}>
+          {reviews.map((r, i) => (
+            <div key={i} style={{ background: "#fafafa", border: "1px solid #ddd", borderRadius: "8px", margin: "10px 0", padding: "10px" }}>
+              {isSecure ? <p>{r.content}</p> : <div dangerouslySetInnerHTML={{ __html: r.content }} />}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* IDOR & CSRF (Same as before) */}
+      <div style={cardStyle}>
+        <h3>IDOR Lab</h3>
+        <button style={buttonStyle} onClick={() => fetchProfile(1)}>View Profile 1</button>
+      </div>
+
+      <div style={cardStyle}>
+        <h3>CSRF Lab</h3>
+        <button style={{ ...buttonStyle, background: "#dc2626" }} onClick={placeOrder}>Place $2000 Order</button>
+      </div>
+    </div>
   );
 }
 
